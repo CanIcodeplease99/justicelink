@@ -1,0 +1,9 @@
+
+services:
+  - type: web
+    name: justicelink-oneclick
+    env: docker
+    region: oregon
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
