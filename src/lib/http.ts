@@ -1,12 +1,13 @@
-
 import axios from "axios";
-import axiosRetry from "axios-retry";
-import Bottleneck from "bottleneck";
 
 export const http = axios.create({
-  timeout: 12000,
-  headers: { "User-Agent": "JusticeLinkBot/1.0 (+contact: ops@yourdomain.com)" },
-  validateStatus: (s) => s >= 200 && s < 400
+  timeout: 15000,
+  maxRedirects: 5,
+  headers: {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  },
+  // Accept non-200 so we can log/inspect pages that still render HTML
+  validateStatus: () => true,
 });
-axiosRetry(http, { retries: 2, retryDelay: axiosRetry.exponentialDelay });
-export const limiter = new Bottleneck({ minTime: 500, maxConcurrent: 2 });

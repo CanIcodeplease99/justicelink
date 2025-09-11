@@ -4,6 +4,7 @@ import { queryCacheFTS, upsertCases } from "../db.js";
 import { fetchConcourt } from "../scrapers/concourt.js";
 import { fetchSCA } from "../scrapers/sca.js";
 import { fetchCommercial } from "../providers/commercial.js";
+import { fetchZACC } from "../scrapers/zacc.js"; // NEW
 
 // Raw row coming from scrapers or DB
 export type CaseRow = {
@@ -88,10 +89,11 @@ export async function unifiedSearch({
     };
   }
 
-  // 2) Live fetch (Concourt + SCA + Commercial) with limited parallelism
+  // 2) Live fetch (Concourt DSpace + ZACC + SCA + Commercial) with limited parallelism
   const limitParallel = pLimit(3);
   const tasks = [
     limitParallel(() => fetchConcourt()),
+    limitParallel(() => fetchZACC()),          // added
     limitParallel(() => fetchSCA()),
     limitParallel(() => fetchCommercial(query)),
   ];
@@ -101,20 +103,28 @@ export async function unifiedSearch({
   );
 
   const normalizedRows = fetched.map(normalize);
-  const unique = dedupe(normalizedRows).sort((a, b) => {
+
+  // Sort newest first (date may be null)
+  const deduped = dedupe(normalizedRows).sort((a, b) => {
     const ad = a.date ? Date.parse(a.date) : 0;
     const bd = b.date ? Date.parse(b.date) : 0;
-    return bd - ad; // newest first
+    return bd - ad;
   });
 
-  const page = unique.slice(offset, offset + limit);
+  // Optional: filter by query to avoid empty-looking results for vague queries
+  const q = (query || "").trim().toLowerCase();
+  const filtered = q
+    ? deduped.filter((r) => r.title.toLowerCase().includes(q))
+    : deduped;
+
+  const page = filtered.slice(offset, offset + limit);
 
   // 3) Fire-and-forget cache upsert (ensure court is a string)
   upsertCases(
-    unique.map<PersistRow>((r) => ({
+    deduped.map<PersistRow>((r) => ({
       title: r.title,
       url: r.url,
-      court: r.court ?? r.source, // guarantee a string
+      court: r.court ?? r.source,
       date: r.date ?? null,
       citation: r.citation ?? null,
     }))
@@ -137,6 +147,6 @@ export async function unifiedSearch({
     query,
     fromCache: false,
     results,
-    total_estimated: unique.length,
+    total_estimated: filtered.length,
   };
 }
