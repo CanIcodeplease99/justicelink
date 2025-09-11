@@ -28,15 +28,28 @@ export async function unifiedSearch({ query, limit, offset, logger }:{ query: st
   if (cached.length) {
     return {
       query, fromCache: true,
-      results: cached.map(r => ({
-        title: r.title,
-        title_highlight: highlight(r.title, query),
-        url: r.url,
-        source: r.court.includes("Commercial") ? "Commercial" : r.court.includes("Constitutional") ? "Concourt" : r.court.includes("Supreme") ? "SCA" : r.court,
-        court: r.court,
-        date: r.date,
-        citation: r.citation || null
-      }))
+      results: cached.map(r => ({// Define the shape of a normalized case result
+type CaseHit = {
+  title: string;
+  url: string;
+  source: string;
+  court?: string;
+  date?: string;
+  citation?: string;
+  title_highlight?: string;
+};
+
+// Map results into CaseHit[]
+const normalized: CaseHit[] = results.map((r: any): CaseHit => ({
+  title: String(r.title ?? ""),
+  url: String(r.url ?? ""),
+  source: String(r.source ?? "Unknown"),
+  court: r.court ?? undefined,
+  date: r.date ?? undefined,
+  citation: r.citation ?? undefined,
+  title_highlight: r.title_highlight ?? undefined,
+}));
+))
     };
   }
 
