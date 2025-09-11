@@ -1,28 +1,43 @@
-
 import * as cheerio from "cheerio";
-import { http, limiter } from "../lib/http.js";
+import { http } from "../lib/http.js";
+import pino from "pino";
+
+const log = pino({ name: "scraper:sca" });
 
 export async function fetchSCA() {
-  const base = "https://www.saflii.org/za/cases/ZASCA/";
-  const { data } = await limiter.schedule(() => http.get<string>(base));
-  const $ = cheerio.load(data);
-  const out: Array<{ source: string; court: string; title: string; url: string; date: string | null; citation?: string | null }> = [];
+  const base = "https://www.saflii.org";
+  const indexUrl = `${base}/za/cases/ZASCA/`;
 
-  $("li a").each((_i, a) => {
-    const href = $(a).attr("href");
-    const rawText = $(a).text().trim().replace(/\s+/g, " ");
-    if (!href) return;
-    const url = href.startsWith("http") ? href : `https://www.saflii.org${href}`;
-    const dateMatch = rawText.match(/\b(20\d{2}|19\d{2})\b/);
-    const date = dateMatch ? `${dateMatch[0]}-01-01` : null;
-    out.push({
-      source: "SCA",
-      court: "Supreme Court of Appeal",
-      title: rawText,
-      url,
-      date,
-      citation: null
+  try {
+    const res = await http.get(indexUrl);
+    if (res.status >= 400) {
+      log.warn({ status: res.status }, "SCA non-200");
+      return [];
+    }
+    const $ = cheerio.load(res.data);
+    const items: any[] = [];
+
+    // Links like /za/cases/ZASCA/2024/123.html
+    $('a[href*="/za/cases/ZASCA/"]').each((_, a) => {
+      const href = $(a).attr("href")?.trim() || "";
+      const text = $(a).text().replace(/\s+/g, " ").trim();
+      if (!href.match(/\/za\/cases\/ZASCA\/\d{4}\/\d+/)) return;
+
+      const abs = href.startsWith("http") ? href : base + href;
+      items.push({
+        source: "SCA",
+        court: "Supreme Court of Appeal",
+        title: text || abs,
+        url: abs,
+        date: null,
+      });
     });
-  });
-  return out;
+
+    if (!items.length) log.warn("SCA: parsed but found 0 items");
+    return items;
+  } catch (err: any) {
+    log.warn({ err: err?.message }, "SCA fetch failed");
+    return [];
+  }
 }
+
