@@ -4,7 +4,7 @@ info:
   title: JusticeLink Court Search
   version: "1.0"
 servers:
-  - url: https://justicelink.onrender.com
+  - url: https://YOUR-RENDER-URL.onrender.com
 paths:
   /health:
     get:
