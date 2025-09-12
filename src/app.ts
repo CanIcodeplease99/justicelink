@@ -59,3 +59,35 @@ initDb()
     logger.error({ err }, "DB init failed");
     process.exit(1);
   });
+
+// ========== diagnostics ==========
+import { fetchConcourt } from "./scrapers/concourt.js";
+import { fetchZACC } from "./scrapers/zacc.js";
+import { fetchSCA } from "./scrapers/sca.js";
+import { readFileSync } from "fs";
+import path from "path";
+
+const version = JSON.parse(
+  readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+).version;
+
+app.get("/version", (_req, res) => {
+  res.json({ version, deployedAt: new Date().toISOString() });
+});
+
+app.get("/__probe", async (_req, res) => {
+  const [cc, zacc, sca] = await Promise.allSettled([
+    fetchConcourt(),
+    fetchZACC(),
+    fetchSCA(),
+  ]);
+  const count = (p: PromiseSettledResult<any>) =>
+    p.status === "fulfilled" ? p.value.length : -1;
+
+  res.json({
+    concourt_items: count(cc),
+    zacc_items: count(zacc),
+    sca_items: count(sca),
+    ok: [cc, zacc, sca].every((p) => p.status === "fulfilled"),
+  });
+});
